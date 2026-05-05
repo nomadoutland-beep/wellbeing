@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ウェルビーイング・トラッカー</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f5f5f3; color: #1a1a1a; min-height: 100vh; padding: 20px 14px 60px; }
+.container { max-width: 720px; margin: 0 auto; }
+h1 { font-size: 19px; font-weight: 600; margin-bottom: 4px; }
+.subtitle { font-size: 12px; color: #888; margin-bottom: 22px; }
+.top-row { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+
+/* カード */
+.card { background: #fff; border: 1px solid #e5e5e3; border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; }
+
+/* 因子カード */
+.factor-card { background: #fff; border: 1.5px solid #e5e5e3; border-radius: 14px; padding: 0; margin-bottom: 14px; overflow: hidden; }
+.factor-header { padding: 14px 18px 12px; display: flex; align-items: center; justify-content: space-between; cursor: default; }
+.factor-header-left { display: flex; align-items: baseline; gap: 8px; }
+.factor-title { font-size: 14px; font-weight: 700; }
+.factor-sub { font-size: 11px; color: #bbb; }
+.factor-header-right { display: flex; align-items: center; gap: 10px; }
+
+/* 上位スコア表示（各因子下段） */
+.factor-score-display { display: flex; align-items: center; gap: 6px; }
+.factor-score-num { font-size: 22px; font-weight: 700; line-height: 1; min-width: 30px; text-align: right; }
+.factor-score-max { font-size: 11px; color: #bbb; margin-top: 2px; }
+
+/* 直接評価ボタン（上位） */
+.direct-toggle { font-size: 11px; border: 1px solid #ccc; border-radius: 6px; padding: 3px 8px; background: transparent; cursor: pointer; color: #888; transition: all 0.15s; white-space: nowrap; }
+.direct-toggle.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+
+/* 上位評価ボタン列（直接入力モード） */
+.direct-row { padding: 0 18px 14px; }
+.direct-hint { display: flex; justify-content: space-between; font-size: 10px; color: #ccc; margin-top: 6px; }
+
+/* 下位因子エリア */
+.sub-factors { border-top: 1px solid #f0f0ee; padding: 12px 18px 14px; transition: opacity 0.2s; }
+.sub-factors.inactive { opacity: 0.3; pointer-events: none; }
+.sub-factor-row { margin-bottom: 12px; }
+.sub-factor-name { font-size: 12px; color: #555; font-weight: 500; margin-bottom: 5px; }
+.btn-row { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; }
+
+/* 評価ボタン共通 */
+.vbtn { width: 27px; height: 27px; border-radius: 5px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.1s; color: #aaa; flex-shrink: 0; }
+.vbtn:hover { transform: scale(1.1); }
+.vbtn.on { color: #fff; }
+.vbtn.skip { opacity: 0.35; cursor: default; }
+
+/* 上位直接評価用は少し大きく */
+.vbtn-lg { width: 30px; height: 30px; font-size: 13px; }
+
+.val-lbl { font-size: 13px; font-weight: 700; min-width: 22px; text-align: right; margin-left: 3px; }
+
+/* 下位平均バッジ */
+.sub-avg-badge { font-size: 11px; color: #aaa; margin-top: 7px; }
+
+/* 総合スコアカード */
+.score-card { background: #fff; border: 1px solid #e5e5e3; border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; }
+.score-inner { display: flex; align-items: center; gap: 20px; }
+.score-circle { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 110px; height: 110px; border-radius: 50%; border: 7px solid #e0e0e0; flex-shrink: 0; transition: border-color 0.4s; }
+.score-num { font-size: 32px; font-weight: 700; line-height: 1; }
+.score-unit { font-size: 12px; color: #999; margin-top: 1px; }
+.score-text { flex: 1; }
+.score-level { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.score-detail { font-size: 12px; color: #888; line-height: 1.6; }
+.score-breakdown { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.score-chip { font-size: 11px; padding: 3px 8px; border-radius: 20px; background: #f5f5f3; color: #555; }
+
+/* ボタン */
+.submit-btn { width: 100%; padding: 14px; background: #1a1a1a; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; margin-top: 4px; }
+.submit-btn:hover { background: #333; }
+.submit-btn:active { transform: scale(0.99); }
+.export-row { display: flex; gap: 10px; margin-top: 12px; }
+.export-btn { flex: 1; padding: 11px; border: 1px solid #ccc; border-radius: 10px; background: #fff; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.export-btn:hover { background: #f5f5f3; border-color: #999; }
+.clear-btn { background: transparent; border: 1px solid #e0e0e0; border-radius: 8px; padding: 5px 10px; font-size: 12px; cursor: pointer; color: #aaa; }
+.clear-btn:hover { color: #c0392b; border-color: #c0392b; }
+
+/* グラフ */
+.chart-controls { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.tabs { display: flex; gap: 6px; }
+.tab { background: transparent; border: 1px solid #ccc; border-radius: 8px; padding: 5px 14px; font-size: 13px; cursor: pointer; color: #666; }
+.tab.active { background: #f0f0ee; color: #1a1a1a; border-color: #999; font-weight: 500; }
+.chart-wrap { position: relative; width: 100%; height: 240px; }
+.empty { text-align: center; padding: 2rem; font-size: 13px; color: #aaa; display: none; }
+.time-note { font-size: 10px; color: #bbb; margin-top: 5px; text-align: right; }
+
+/* 詳細バー */
+.bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.bar-label { font-size: 11px; color: #666; width: 160px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { flex: 1; height: 7px; background: #f0f0f0; border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+.bar-val { font-size: 11px; color: #888; width: 26px; text-align: right; }
+
+/* 履歴 */
+.hist-item { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #f0f0ee; font-size: 13px; }
+.hist-item:last-child { border-bottom: none; }
+.hist-score { font-weight: 700; font-size: 15px; }
+
+#toast { display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; border-radius: 8px; padding: 10px 20px; font-size: 13px; z-index: 9999; white-space: nowrap; }
+
+/* HealthKit連携バナー */
+.hk-banner { background: linear-gradient(135deg,#1c7cd5,#34c759); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; color: #fff; display: none; }
+.hk-banner-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.hk-banner-items { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.hk-chip { background: rgba(255,255,255,0.22); border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 500; }
+.hk-chip .raw { font-size: 10px; opacity: 0.75; margin-left: 3px; }
+.hk-note { font-size: 11px; opacity: 0.85; line-height: 1.6; }
+.hk-edit-btn { margin-top: 8px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); border-radius: 7px; padding: 5px 12px; color: #fff; font-size: 12px; cursor: pointer; }
+/* 設定パネル */
+.hk-settings { background: #f0f8ff; border: 1px solid #cce5ff; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; display: none; }
+.hk-settings-title { font-size: 13px; font-weight: 600; color: #1c7cd5; margin-bottom: 10px; }
+.hk-setting-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 12px; color: #333; }
+.hk-setting-row input { width: 80px; border: 1px solid #ccc; border-radius: 6px; padding: 4px 8px; font-size: 12px; text-align: right; }
+.hk-settings-save { background: #1c7cd5; color: #fff; border: none; border-radius: 7px; padding: 6px 16px; font-size: 12px; cursor: pointer; margin-top: 6px; }
+/* HealthKit自動入力されたボタン行のハイライト */
+.hk-auto-row { background: linear-gradient(90deg,rgba(28,124,213,0.07),rgba(52,199,89,0.07)); border-radius: 8px; padding: 6px 8px; margin: -6px -8px 6px; position: relative; }
+.hk-auto-row::before { content:'🍎 自動入力'; position:absolute; top:-8px; right:4px; font-size:9px; background:linear-gradient(90deg,#1c7cd5,#34c759); color:#fff; border-radius:10px; padding:1px 6px; font-weight:600; }
+.hk-auto-badge { display:inline-block; font-size:9px; background:linear-gradient(90deg,#1c7cd5,#34c759); color:#fff; border-radius:10px; padding:1px 7px; margin-left:6px; font-weight:600; vertical-align:middle; }
+
+@media (max-width: 480px) {
+  .vbtn { width: 24px; height: 24px; font-size: 11px; }
+  .vbtn-lg { width: 27px; height: 27px; font-size: 12px; }
+  .score-inner { gap: 14px; }
+  .score-circle { width: 90px; height: 90px; }
+  .score-num { font-size: 26px; }
+  .export-row { flex-direction: column; }
+  .bar-label { width: 120px; }
+}
+@media (prefers-color-scheme: dark) {
+  body { background: #1a1a1a; color: #e8e8e8; }
+  .card, .factor-card, .score-card { background: #242424; border-color: #3a3a3a; }
+  .sub-factors { border-color: #333; }
+  .vbtn { background: #2e2e2e; border-color: #555; color: #777; }
+  .tab { border-color: #555; color: #aaa; }
+  .tab.active { background: #333; color: #e8e8e8; border-color: #888; }
+  .submit-btn { background: #e8e8e8; color: #111; }
+  .export-btn { background: #2a2a2a; border-color: #555; color: #ccc; }
+  .bar-track { background: #333; }
+  .clear-btn { border-color: #444; color: #666; }
+  .hist-item { border-color: #333; }
+  .sub-factor-name { color: #aaa; }
+  .factor-sub, .score-chip { color: #888; }
+  .score-chip { background: #2e2e2e; }
+  .direct-toggle { border-color: #555; color: #888; }
+  .direct-toggle.active { background: #e8e8e8; color: #111; border-color: #e8e8e8; }
+  #toast { background: #eee; color: #111; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="top-row">
+    <div>
+      <h1>ウェルビーイング・トラッカー</h1>
+      <p class="subtitle">各因子を評価して幸福度を記録しよう</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding-top:4px">
+      <span style="font-size:12px;color:#888" id="rec-count">0件</span>
+      <button class="clear-btn" onclick="clearAll()">リセット</button>
+    </div>
+  </div>
+
+  <!-- HealthKit連携バナー -->
+  <div class="hk-banner" id="hk-banner">
+    <div class="hk-banner-title">🍎 Apple HealthKit から自動入力されました</div>
+    <div class="hk-banner-items" id="hk-chips"></div>
+    <div class="hk-note" id="hk-note"></div>
+    <button class="hk-edit-btn" onclick="toggleHKSettings()">⚙ 変換基準を編集</button>
+  </div>
+  <!-- 変換設定パネル -->
+  <div class="hk-settings" id="hk-settings">
+    <div class="hk-settings-title">⚙ スコア変換基準の編集</div>
+    <div class="hk-setting-row"><span>歩数 10点の基準（歩）</span><input type="number" id="cfg-steps" value="10000"></div>
+    <div class="hk-setting-row"><span>運動時間 10点の基準（分）</span><input type="number" id="cfg-workout" value="60"></div>
+    <div class="hk-setting-row"><span>安静時心拍数 10点（拍/分以下）</span><input type="number" id="cfg-hr-best" value="50"></div>
+    <div class="hk-setting-row"><span>安静時心拍数 1点（拍/分以上）</span><input type="number" id="cfg-hr-worst" value="90"></div>
+    <div class="hk-setting-row"><span>睡眠 10点の基準（時間）</span><input type="number" id="cfg-sleep-best" value="7.5" step="0.5"></div>
+    <div class="hk-setting-row"><span>睡眠 1点の基準（時間）</span><input type="number" id="cfg-sleep-worst" value="4" step="0.5"></div>
+    <div class="hk-setting-row"><span>瞑想時間 10点の基準（分）</span><input type="number" id="cfg-meditation" value="30"></div>
+    <button class="hk-settings-save" onclick="saveHKSettings()">保存して再適用</button>
+  </div>
+
+  <!-- 因子カードはJSで生成 -->
+  <div id="factor-cards"></div>
+
+  <!-- 総合スコア（因子カードの下） -->
+  <div class="score-card" id="score-card">
+    <div class="score-inner">
+      <div class="score-circle" id="score-circle">
+        <span class="score-num" id="score-num">—</span>
+        <span class="score-unit">%</span>
+      </div>
+      <div class="score-text">
+        <div class="score-level" id="score-level">各因子を評価してください</div>
+        <div class="score-detail" id="score-detail">合計点 ÷ 50 × 100 = ウェルビーイング%</div>
+        <div class="score-breakdown" id="score-breakdown"></div>
+      </div>
+    </div>
+  </div>
+
+  <button class="submit-btn" onclick="submitRecord()">この状態を記録する</button>
+
+  <div class="export-row">
+    <button class="export-btn" onclick="exportPNG()"><span>🖼</span> グラフをPNG保存</button>
+    <button class="export-btn" onclick="exportPDF()"><span>📄</span> PDFレポート</button>
+  </div>
+
+  <!-- グラフ -->
+  <div class="card" style="margin-top:14px" id="chart-card">
+    <div class="chart-controls">
+      <span style="font-size:14px;font-weight:600">推移グラフ</span>
+      <div class="tabs">
+        <button class="tab active" onclick="switchView('hour',this)">時間</button>
+        <button class="tab" onclick="switchView('day',this)">日</button>
+        <button class="tab" onclick="switchView('month',this)">月</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="wbChart" role="img" aria-label="ウェルビーイングスコアの推移"></canvas>
+    </div>
+    <div class="empty" id="empty-msg">まだ記録がありません。評価して記録しましょう。</div>
+    <div class="time-note" id="time-note" style="display:none">※ 横軸は実際の時間差に比例（散布図方式）</div>
+  </div>
+
+  <!-- 因子別バー（最新） -->
+  <div class="card" id="detail-card" style="display:none">
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px">最新記録の因子内訳</div>
+    <div id="detail-bars"></div>
+  </div>
+
+  <!-- 履歴 -->
+  <div class="card" id="hist-card" style="display:none">
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px">記録履歴（直近10件）</div>
+    <div id="hist-list"></div>
+  </div>
+
+</div>
+<div id="toast"></div>
+
+<script>
+const SK = 'wellbeing-tracker-v10';
+let records = [], chart = null, currentView = 'hour';
+
+// =============================================
+// 因子定義
+// subs: 下位因子の配列。name + id
+// color: 因子カラー
+// =============================================
+const FACTORS = [
+  {
+    id:'bio', name:'身体の調律', sub:'バイオ・メンテナンス', color:'#5c9ee8',
+    subs:[
+      {id:'bio1', name:'従来型筋力'},
+      {id:'bio2', name:'機能的筋力'},
+      {id:'bio3', name:'ウォーキング'},
+      {id:'bio4', name:'歩数'},
+      {id:'bio5', name:'心拍数'},
+      {id:'bio6', name:'運動時間'},
+      {id:'bio7', name:'睡眠時間'},
+      {id:'bio8', name:'その他'}
+    ]
+  },
+  {
+    id:'sen', name:'日常の解像度', sub:'センサリー・プレジャー', color:'#4db6ac',
+    subs:[
+      {id:'sen1', name:'読経、瞑想の深まり'},
+      {id:'sen2', name:'生きる行為'},
+      {id:'sen3', name:'マインドフルネス'},
+      {id:'sen4', name:'メディテーション時間'},
+      {id:'sen5', name:'その他'}
+    ]
+  },
+  {
+    id:'con', name:'社会的交換', sub:'ライト・コネクション', color:'#81c784',
+    subs:[
+      {id:'con1', name:'妻'},
+      {id:'con2', name:'子'},
+      {id:'con3', name:'他人'},
+      {id:'con4', name:'その他'}
+    ]
+  },
+  {
+    id:'mind', name:'知的好奇心と内省', sub:'マインド・ジャーニー', color:'#ffa726',
+    subs:[
+      {id:'mind1', name:'人間の認知'},
+      {id:'mind2', name:'量子論と宇宙'},
+      {id:'mind3', name:'経済的合理性'},
+      {id:'mind4', name:'その他'}
+    ]
+  },
+  {
+    id:'res', name:'感情のコントロール', sub:'レジリエンス', color:'#ff8a65',
+    subs:[
+      { id:'res1', name:'感情の受容（アクセプタンス）',
+        items:[
+          {id:'res1a', name:'判断しない'},
+          {id:'res1b', name:'感情のラベリング'},
+          {id:'res1c', name:'その他'}
+        ]
+      },
+      { id:'res2', name:'マインドフルネス（今、ここ）',
+        items:[
+          {id:'res2a', name:'五感への回帰'},
+          {id:'res2b', name:'その他'}
+        ]
+      },
+      { id:'res3', name:'セルフ・コンパッション（自分への慈しみ）',
+        items:[
+          {id:'res3a', name:'共通の人間性'},
+          {id:'res3b', name:'自分への寛容さ'},
+          {id:'res3c', name:'その他'}
+        ]
+      },
+      { id:'res4', name:'境界線（バウンダリー）の確立',
+        items:[
+          {id:'res4a', name:'課題の責任範囲'},
+          {id:'res4b', name:'その他'}
+        ]
+      },
+      { id:'res5', name:'レジリエンス（精神的回復力）',
+        items:[
+          {id:'res5a', name:'再構成（リフレーミング）の柔軟性'},
+          {id:'res5b', name:'その他'}
+        ]
+      }
+    ]
+  }
+];
+
+const SCORE_LEVELS = [
+  [0,20,'深刻な状態','#e57373'],
+  [20,40,'かなり厳しい','#ff8a65'],
+  [40,60,'ふつう','#ffd54f'],
+  [60,80,'良い状態','#81c784'],
+  [80,101,'とても良い！','#4db6ac']
+];
+function getLevel(s){ return SCORE_LEVELS.find(([lo,hi])=>s>=lo&&s<hi)||SCORE_LEVELS[4]; }
+function getLevelColor(s){ return getLevel(s)[3]; }
+function getLevelLabel(s){ return getLevel(s)[2]; }
+
+// =============================================
+// 状態管理
+// topVals[i]   : 上位直接評価値（0=未入力）
+// subVals[i][j]: 下位評価値（0=未入力）
+// directMode[i]: true = 上位直接評価モード
+// =============================================
+let topVals = FACTORS.map(()=>0);
+let subVals = FACTORS.map(f=>f.subs.map(()=>0));
+// itemVals[fi][si][ii]: 2階層目の評価値（items配列を持つsubのみ）
+let itemVals = FACTORS.map(f=>f.subs.map(sf=>(sf.items||[]).map(()=>0)));
+let directMode = FACTORS.map(f=>f.subs.length===0);
+// subDirectMode[fi][si]: 中位の直接入力モード（trueなら下位アイテムを無効化）
+let subDirectMode = FACTORS.map(f=>f.subs.map(sf=>!(sf.items&&sf.items.length>0)));
+
+// 有効な中位値を返す（直接 or 下位アイテム平均）
+function getEffectiveSubVal(fi, si) {
+  const sf = FACTORS[fi].subs[si];
+  if(!sf.items || sf.items.length===0 || subDirectMode[fi][si]) {
+    return subVals[fi][si];
+  }
+  const filled = itemVals[fi][si].filter(v=>v>0);
+  if(filled.length===0) return 0;
+  return Math.round(filled.reduce((a,b)=>a+b,0)/filled.length*10)/10;
+}
+
+// 有効な上位値を返す（直接 or 下位平均）
+function getEffectiveVal(fi) {
+  if(directMode[fi]) {
+    return topVals[fi];
+  } else {
+    const filled = FACTORS[fi].subs.map((_,si)=>getEffectiveSubVal(fi,si)).filter(v=>v>0);
+    if(filled.length===0) return 0;
+    return Math.round(filled.reduce((a,b)=>a+b,0)/filled.length*10)/10;
+  }
+}
+
+// =============================================
+// ストレージ
+// =============================================
+function load(){
+  try{ records=JSON.parse(localStorage.getItem(SK)||'[]'); }catch(e){ records=[]; }
+  updateCount(); drawChart(); renderDetail(); renderHist();
+}
+function persist(){ localStorage.setItem(SK,JSON.stringify(records)); }
+function updateCount(){ document.getElementById('rec-count').textContent=records.length+'件'; }
+
+// =============================================
+// UI構築
+// =============================================
+function buildUI(){
+  const container=document.getElementById('factor-cards');
+  FACTORS.forEach((f,fi)=>{
+    const card=document.createElement('div');
+    card.className='factor-card';
+    card.style.borderColor=f.color+'55';
+
+    // --- ヘッダー ---
+    const header=document.createElement('div');
+    header.className='factor-header';
+    header.style.borderBottom='1px solid '+f.color+'22';
+
+    const left=document.createElement('div');
+    left.className='factor-header-left';
+    left.innerHTML=`<span class="factor-title" style="color:${f.color}">${f.name}</span><span class="factor-sub">${f.sub}</span>`;
+
+    const right=document.createElement('div');
+    right.className='factor-header-right';
+
+    // 上位スコア表示
+    const scoreDisp=document.createElement('div');
+    scoreDisp.className='factor-score-display';
+    scoreDisp.innerHTML=`<span class="factor-score-num" id="top-score-${fi}" style="color:#ddd">—</span><span class="factor-score-max">/10</span>`;
+
+    right.appendChild(scoreDisp);
+
+    // 下位因子がある場合のみ切り替えボタン表示
+    if(f.subs.length>0){
+      const toggle=document.createElement('button');
+      toggle.className='direct-toggle';
+      toggle.id='toggle-'+fi;
+      toggle.textContent='直接入力';
+      toggle.onclick=()=>toggleDirectMode(fi);
+      right.appendChild(toggle);
+    }
+
+    header.appendChild(left);
+    header.appendChild(right);
+    card.appendChild(header);
+
+    // --- 上位直接評価行（下位なし因子 or directModeがONのとき表示） ---
+    const directRow=document.createElement('div');
+    directRow.className='direct-row';
+    directRow.id='direct-row-'+fi;
+    directRow.style.display = (f.subs.length===0||directMode[fi]) ? 'block':'none';
+    const directBtnRow=document.createElement('div');
+    directBtnRow.className='btn-row';
+    for(let s=1;s<=10;s++){
+      const btn=document.createElement('button');
+      btn.className='vbtn vbtn-lg'; btn.id='top-'+fi+'-'+s; btn.textContent=s;
+      btn.style.borderColor=f.color+'55';
+      btn.onclick=()=>setTopVal(fi,s);
+      directBtnRow.appendChild(btn);
+    }
+    const topVLbl=document.createElement('span');
+    topVLbl.className='val-lbl'; topVLbl.id='toplbl-'+fi; topVLbl.style.color=f.color; topVLbl.textContent='—';
+    directBtnRow.appendChild(topVLbl);
+    directRow.appendChild(directBtnRow);
+    const dHint=document.createElement('div');
+    dHint.className='direct-hint';
+    dHint.innerHTML='<span>1 低い</span><span>5 ふつう</span><span>10 高い</span>';
+    directRow.appendChild(dHint);
+    card.appendChild(directRow);
+
+    // --- 下位因子エリア ---
+    if(f.subs.length>0){
+      const subArea=document.createElement('div');
+      subArea.className='sub-factors';
+      subArea.id='sub-area-'+fi;
+      subArea.style.display = directMode[fi] ? 'none':'block';
+
+      f.subs.forEach((sf,si)=>{
+        const sfRow=document.createElement('div');
+        sfRow.className='sub-factor-row';
+        sfRow.id='sfrow-'+fi+'-'+si;
+
+        // 中位ヘッダー（名前＋スコア表示＋直接入力ボタン）
+        const sfHeader=document.createElement('div');
+        sfHeader.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;';
+
+        const sfNameEl=document.createElement('div');
+        sfNameEl.className='sub-factor-name';
+        sfNameEl.style.marginBottom='0';
+        sfNameEl.textContent=sf.name;
+
+        const sfRight=document.createElement('div');
+        sfRight.style.cssText='display:flex;align-items:center;gap:6px;flex-shrink:0;';
+
+        const sfScore=document.createElement('span');
+        sfScore.id='sub-score-'+fi+'-'+si;
+        sfScore.style.cssText='font-size:12px;font-weight:700;color:#ccc;min-width:28px;text-align:right;';
+        sfScore.textContent='—';
+        sfRight.appendChild(sfScore);
+
+        // itemsがある場合は中位直接入力トグルを追加
+        if(sf.items && sf.items.length>0){
+          const sfToggle=document.createElement('button');
+          sfToggle.style.cssText='font-size:10px;border:1px solid #ddd;border-radius:5px;padding:2px 6px;background:transparent;cursor:pointer;color:#aaa;white-space:nowrap;';
+          sfToggle.id='subtoggle-'+fi+'-'+si;
+          sfToggle.textContent='直接';
+          sfToggle.onclick=()=>toggleSubDirectMode(fi,si);
+          sfRight.appendChild(sfToggle);
+        }
+
+        sfHeader.appendChild(sfNameEl);
+        sfHeader.appendChild(sfRight);
+        sfRow.appendChild(sfHeader);
+
+        // 中位直接入力ボタン行
+        const sfDirectRow=document.createElement('div');
+        sfDirectRow.id='sf-direct-'+fi+'-'+si;
+        sfDirectRow.style.display = subDirectMode[fi][si] ? 'block':'none';
+        const sfBtnRow=document.createElement('div');
+        sfBtnRow.className='btn-row';
+        for(let s=1;s<=10;s++){
+          const btn=document.createElement('button');
+          btn.className='vbtn'; btn.id='sub-'+fi+'-'+si+'-'+s; btn.textContent=s;
+          btn.style.borderColor=f.color+'44';
+          btn.onclick=()=>setSubVal(fi,si,s);
+          sfBtnRow.appendChild(btn);
+        }
+        const svLbl=document.createElement('span');
+        svLbl.className='val-lbl'; svLbl.id='sublbl-'+fi+'-'+si; svLbl.style.color=f.color; svLbl.textContent='—';
+        sfBtnRow.appendChild(svLbl);
+        sfDirectRow.appendChild(sfBtnRow);
+        sfRow.appendChild(sfDirectRow);
+
+        // 下位アイテムエリア（itemsがある場合）
+        if(sf.items && sf.items.length>0){
+          const itemArea=document.createElement('div');
+          itemArea.id='item-area-'+fi+'-'+si;
+          itemArea.style.cssText='padding-left:12px;border-left:2px solid '+f.color+'33;margin-top:6px;';
+          itemArea.style.display = subDirectMode[fi][si] ? 'none':'block';
+
+          sf.items.forEach((item,ii)=>{
+            const itemRow=document.createElement('div');
+            itemRow.style.marginBottom='8px';
+            const itemName=document.createElement('div');
+            itemName.style.cssText='font-size:11px;color:#888;margin-bottom:4px;';
+            itemName.textContent=item.name;
+            const itemBtnRow=document.createElement('div');
+            itemBtnRow.className='btn-row';
+            for(let s=1;s<=10;s++){
+              const btn=document.createElement('button');
+              btn.className='vbtn'; btn.id='item-'+fi+'-'+si+'-'+ii+'-'+s; btn.textContent=s;
+              btn.style.borderColor=f.color+'33';
+              btn.style.width='24px'; btn.style.height='24px'; btn.style.fontSize='11px';
+              btn.onclick=()=>setItemVal(fi,si,ii,s);
+              itemBtnRow.appendChild(btn);
+            }
+            const itemLbl=document.createElement('span');
+            itemLbl.className='val-lbl'; itemLbl.id='itemlbl-'+fi+'-'+si+'-'+ii;
+            itemLbl.style.cssText='font-size:11px;font-weight:700;color:#bbb;min-width:20px;text-align:right;margin-left:2px;';
+            itemLbl.textContent='—';
+            itemBtnRow.appendChild(itemLbl);
+            itemRow.appendChild(itemName);
+            itemRow.appendChild(itemBtnRow);
+            itemArea.appendChild(itemRow);
+          });
+
+          // アイテム平均バッジ
+          const itemAvg=document.createElement('div');
+          itemAvg.id='item-avg-'+fi+'-'+si;
+          itemAvg.style.cssText='font-size:10px;color:#bbb;margin-top:4px;';
+          itemAvg.textContent='入力した項目の平均が中位スコアになります';
+          itemArea.appendChild(itemAvg);
+          sfRow.appendChild(itemArea);
+        }
+
+        subArea.appendChild(sfRow);
+
+        // 中位間の区切り
+        if(si < f.subs.length-1){
+          const sep=document.createElement('div');
+          sep.style.cssText='height:1px;background:'+f.color+'15;margin:10px 0;';
+          subArea.appendChild(sep);
+        }
+      });
+
+      // 下位平均表示
+      const avgBadge=document.createElement('div');
+      avgBadge.className='sub-avg-badge';
+      avgBadge.id='sub-avg-'+fi;
+      avgBadge.textContent='入力した項目の平均が上位スコアになります';
+      subArea.appendChild(avgBadge);
+      card.appendChild(subArea);
+    }
+
+    container.appendChild(card);
+  });
+}
+
+// =============================================
+// 直接モード切替
+// =============================================
+function toggleDirectMode(fi){
+  directMode[fi]=!directMode[fi];
+  const toggle=document.getElementById('toggle-'+fi);
+  const directRow=document.getElementById('direct-row-'+fi);
+  const subArea=document.getElementById('sub-area-'+fi);
+
+  if(directMode[fi]){
+    toggle.classList.add('active');
+    toggle.textContent='下位評価へ';
+    directRow.style.display='block';
+    subArea.style.display='none';
+    // 下位・アイテム全リセット
+    subVals[fi]=FACTORS[fi].subs.map(()=>0);
+    itemVals[fi]=FACTORS[fi].subs.map(sf=>(sf.items||[]).map(()=>0));
+    FACTORS[fi].subs.forEach((sf,si)=>{
+      for(let s=1;s<=10;s++) resetBtn('sub-'+fi+'-'+si+'-'+s, FACTORS[fi].color);
+      const lbl=document.getElementById('sublbl-'+fi+'-'+si); if(lbl) lbl.textContent='—';
+      (sf.items||[]).forEach((_,ii)=>{
+        for(let s=1;s<=10;s++) resetBtn('item-'+fi+'-'+si+'-'+ii+'-'+s, FACTORS[fi].color);
+        const il=document.getElementById('itemlbl-'+fi+'-'+si+'-'+ii); if(il) il.textContent='—';
+      });
+      updateSubScore(fi,si);
+    });
+  } else {
+    toggle.classList.remove('active');
+    toggle.textContent='直接入力';
+    directRow.style.display='none';
+    subArea.style.display='block';
+    topVals[fi]=0;
+    for(let s=1;s<=10;s++) resetBtn('top-'+fi+'-'+s, FACTORS[fi].color);
+    document.getElementById('toplbl-'+fi).textContent='—';
+  }
+  updateTopScore(fi);
+  updateTotalPreview();
+}
+
+// =============================================
+// 中位直接モード切替
+// =============================================
+function toggleSubDirectMode(fi, si){
+  subDirectMode[fi][si]=!subDirectMode[fi][si];
+  const sfToggle=document.getElementById('subtoggle-'+fi+'-'+si);
+  const sfDirectRow=document.getElementById('sf-direct-'+fi+'-'+si);
+  const itemArea=document.getElementById('item-area-'+fi+'-'+si);
+  if(subDirectMode[fi][si]){
+    sfToggle.textContent='下位へ';
+    sfToggle.style.background='#555'; sfToggle.style.color='#fff'; sfToggle.style.borderColor='#555';
+    sfDirectRow.style.display='block';
+    if(itemArea) itemArea.style.display='none';
+    // アイテム値リセット
+    itemVals[fi][si]=FACTORS[fi].subs[si].items.map(()=>0);
+    FACTORS[fi].subs[si].items.forEach((_,ii)=>{
+      for(let s=1;s<=10;s++) resetBtn('item-'+fi+'-'+si+'-'+ii+'-'+s, FACTORS[fi].color);
+      const lbl=document.getElementById('itemlbl-'+fi+'-'+si+'-'+ii);
+      if(lbl) lbl.textContent='—';
+    });
+  } else {
+    sfToggle.textContent='直接';
+    sfToggle.style.background=''; sfToggle.style.color=''; sfToggle.style.borderColor='';
+    sfDirectRow.style.display='none';
+    if(itemArea) itemArea.style.display='block';
+    subVals[fi][si]=0;
+    for(let s=1;s<=10;s++) resetBtn('sub-'+fi+'-'+si+'-'+s, FACTORS[fi].color);
+    const lbl=document.getElementById('sublbl-'+fi+'-'+si);
+    if(lbl) lbl.textContent='—';
+  }
+  updateSubScore(fi,si);
+  updateTopScore(fi);
+  updateTotalPreview();
+}
+
+function resetBtn(id, color){
+  const btn=document.getElementById(id);
+  if(!btn) return;
+  btn.style.background=''; btn.style.borderColor=color+'44'; btn.style.color='';
+}
+
+// =============================================
+// 値セット
+// =============================================
+function setTopVal(fi, v){
+  topVals[fi]=v;
+  const color=FACTORS[fi].color;
+  for(let s=1;s<=10;s++){
+    const btn=document.getElementById('top-'+fi+'-'+s);
+    if(!btn) continue;
+    if(s<=v){ btn.style.background=color; btn.style.borderColor=color; btn.style.color='#fff'; }
+    else{ btn.style.background=''; btn.style.borderColor=color+'55'; btn.style.color=''; }
+  }
+  document.getElementById('toplbl-'+fi).textContent=v;
+  updateTopScore(fi);
+  updateTotalPreview();
+}
+
+function setSubVal(fi, si, v){
+  subVals[fi][si]=v;
+  const color=FACTORS[fi].color;
+  for(let s=1;s<=10;s++){
+    const btn=document.getElementById('sub-'+fi+'-'+si+'-'+s);
+    if(!btn) continue;
+    if(s<=v){ btn.style.background=color; btn.style.borderColor=color; btn.style.color='#fff'; }
+    else{ btn.style.background=''; btn.style.borderColor=color+'44'; btn.style.color=''; }
+  }
+  const lbl=document.getElementById('sublbl-'+fi+'-'+si);
+  if(lbl){ lbl.textContent=v; lbl.style.color=color; }
+  updateSubScore(fi,si);
+  updateTopScore(fi);
+  updateTotalPreview();
+}
+
+function setItemVal(fi, si, ii, v){
+  itemVals[fi][si][ii]=v;
+  const color=FACTORS[fi].color;
+  for(let s=1;s<=10;s++){
+    const btn=document.getElementById('item-'+fi+'-'+si+'-'+ii+'-'+s);
+    if(!btn) continue;
+    if(s<=v){ btn.style.background=color; btn.style.borderColor=color; btn.style.color='#fff'; }
+    else{ btn.style.background=''; btn.style.borderColor=color+'33'; btn.style.color=''; }
+  }
+  const lbl=document.getElementById('itemlbl-'+fi+'-'+si+'-'+ii);
+  if(lbl){ lbl.textContent=v; lbl.style.color=color; }
+  updateSubScore(fi,si);
+  updateTopScore(fi);
+  updateTotalPreview();
+}
+
+// 中位スコア表示を更新
+function updateSubScore(fi, si){
+  const eff=getEffectiveSubVal(fi,si);
+  const el=document.getElementById('sub-score-'+fi+'-'+si);
+  const color=FACTORS[fi].color;
+  if(!el) return;
+  if(eff>0){
+    el.textContent=eff%1===0?eff:eff.toFixed(1);
+    el.style.color=color;
+    const sf=FACTORS[fi].subs[si];
+    const itemAvg=document.getElementById('item-avg-'+fi+'-'+si);
+    if(itemAvg && !subDirectMode[fi][si]){
+      const filled=itemVals[fi][si].filter(v=>v>0).length;
+      itemAvg.textContent='評価済み '+filled+'/'+sf.items.length+' 項目の平均: '+el.textContent;
+      itemAvg.style.color=color;
+    }
+  } else {
+    el.textContent='—'; el.style.color='#ccc';
+    const itemAvg=document.getElementById('item-avg-'+fi+'-'+si);
+    if(itemAvg) { itemAvg.textContent='入力した項目の平均が中位スコアになります'; itemAvg.style.color=''; }
+  }
+}
+
+// 上位スコア表示を更新
+function updateTopScore(fi){
+  const eff=getEffectiveVal(fi);
+  const el=document.getElementById('top-score-'+fi);
+  const color=FACTORS[fi].color;
+  if(eff>0){
+    el.textContent=eff%1===0?eff:eff.toFixed(1);
+    el.style.color=color;
+    const avgBadge=document.getElementById('sub-avg-'+fi);
+    if(avgBadge&&!directMode[fi]){
+      const filled=FACTORS[fi].subs.map((_,si)=>getEffectiveSubVal(fi,si)).filter(v=>v>0).length;
+      avgBadge.textContent='評価済み '+filled+'/'+FACTORS[fi].subs.length+' 中位の平均: '+el.textContent;
+      avgBadge.style.color=color;
+    }
+  } else {
+    el.textContent='—'; el.style.color='#ddd';
+    const avgBadge=document.getElementById('sub-avg-'+fi);
+    if(avgBadge&&!directMode[fi]){ avgBadge.textContent='入力した項目の平均が上位スコアになります'; avgBadge.style.color=''; }
+  }
+}
+
+// =============================================
+// 総合スコア計算・プレビュー
+// =============================================
+function calcTotalScore(){
+  const effVals=FACTORS.map((_,fi)=>getEffectiveVal(fi));
+  const filled=effVals.filter(v=>v>0);
+  if(filled.length===0) return {score:0, total:0, effVals, filledCount:0};
+  const total=effVals.reduce((a,b)=>a+b,0);
+  const score=Math.round(total/50*100);
+  return {score, total, effVals, filledCount:filled.length};
+}
+
+function updateTotalPreview(){
+  const {score,total,effVals,filledCount}=calcTotalScore();
+  if(filledCount===0){
+    document.getElementById('score-num').textContent='—';
+    document.getElementById('score-num').style.color='';
+    document.getElementById('score-circle').style.borderColor='#e0e0e0';
+    document.getElementById('score-level').textContent='各因子を評価してください';
+    document.getElementById('score-detail').textContent='合計点 ÷ 50 × 100 = ウェルビーイング%';
+    document.getElementById('score-breakdown').innerHTML='';
+    return;
+  }
+  const color=getLevelColor(score);
+  document.getElementById('score-num').textContent=score;
+  document.getElementById('score-num').style.color=color;
+  document.getElementById('score-circle').style.borderColor=color;
+  document.getElementById('score-level').textContent=getLevelLabel(score);
+  document.getElementById('score-detail').textContent='合計 '+total.toFixed(1)+' 点 ÷ 50 × 100 = '+score+'%（'+filledCount+'/'+FACTORS.length+' 因子評価済み）';
+
+  // 因子チップ
+  const bd=document.getElementById('score-breakdown');
+  bd.innerHTML=FACTORS.map((f,fi)=>{
+    const v=effVals[fi];
+    if(v===0) return `<span class="score-chip" style="opacity:0.4">${f.name} —</span>`;
+    const vStr=v%1===0?v:v.toFixed(1);
+    return `<span class="score-chip" style="background:${f.color}22;color:${f.color}">${f.name} ${vStr}</span>`;
+  }).join('');
+}
+
+// =============================================
+// 記録
+// =============================================
+function submitRecord(){
+  const {score,total,effVals,filledCount}=calcTotalScore();
+  if(filledCount===0){ toast('少なくとも1つの因子を評価してください'); return; }
+  const rec={
+    time:new Date().toISOString(),
+    score,
+    vals:effVals,
+    subVals:FACTORS.map((_,fi)=>directMode[fi]?[]:subVals[fi].slice()),
+    directMode:[...directMode]
+  };
+  records.push(rec);
+  persist(); updateCount(); drawChart(); renderDetail(); renderHist();
+  toast('記録しました！ ウェルビーイング '+score+'%');
+  resetForm();
+}
+
+function resetForm(){
+  topVals=FACTORS.map(()=>0);
+  subVals=FACTORS.map(f=>f.subs.map(()=>0));
+  itemVals=FACTORS.map(f=>f.subs.map(sf=>(sf.items||[]).map(()=>0)));
+  FACTORS.forEach((f,fi)=>{
+    for(let s=1;s<=10;s++) resetBtn('top-'+fi+'-'+s,f.color);
+    const tl=document.getElementById('toplbl-'+fi); if(tl) tl.textContent='—';
+    f.subs.forEach((sf,si)=>{
+      for(let s=1;s<=10;s++) resetBtn('sub-'+fi+'-'+si+'-'+s,f.color);
+      const sl=document.getElementById('sublbl-'+fi+'-'+si); if(sl) sl.textContent='—';
+      (sf.items||[]).forEach((_,ii)=>{
+        for(let s=1;s<=10;s++) resetBtn('item-'+fi+'-'+si+'-'+ii+'-'+s,f.color);
+        const il=document.getElementById('itemlbl-'+fi+'-'+si+'-'+ii); if(il) il.textContent='—';
+      });
+      updateSubScore(fi,si);
+    });
+    updateTopScore(fi);
+  });
+  updateTotalPreview();
+}
+
+function clearAll(){
+  if(!confirm('すべての記録を削除しますか？')) return;
+  records=[]; persist(); updateCount();
+  if(chart){chart.destroy();chart=null;}
+  drawChart(); renderDetail(); renderHist();
+  toast('リセットしました');
+}
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.display='block';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2600);
+}
+
+// =============================================
+// グラフ（散布図・時間比例）
+// =============================================
+function switchView(v,el){
+  currentView=v;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  if(chart){chart.destroy();chart=null;}
+  drawChart();
+}
+
+function getRawPoints(){
+  return records.map(r=>({x:new Date(r.time).getTime(), y:r.score}));
+}
+
+function tickLabel(ms){
+  const d=new Date(ms), now=new Date();
+  const diff=Math.floor((now-d)/86400000);
+  if(currentView==='month') return d.getFullYear()+'/'+(d.getMonth()+1);
+  if(currentView==='day'){
+    if(diff===0) return '今日';
+    if(diff===1) return '昨日';
+    if(diff<7) return diff+'日前';
+    return (d.getMonth()+1)+'/'+d.getDate();
+  }
+  const hm=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  if(diff===0) return '今日 '+hm;
+  if(diff===1) return '昨日 '+hm;
+  if(diff<7) return diff+'日前 '+String(d.getHours()).padStart(2,'0')+':00';
+  return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':00';
+}
+
+function fmtDatetime(ms){
+  const d=new Date(ms), now=new Date();
+  const diff=Math.floor((now-d)/86400000);
+  const hm=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  const prefix=diff===0?'今日':diff===1?'昨日':diff<7?diff+'日前':d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();
+  return prefix+' '+hm;
+}
+
+function calcTickInterval(pts){
+  if(pts.length<2) return null;
+  const span=pts[pts.length-1].x-pts[0].x;
+  if(currentView==='month'){ const m=Math.max(1,Math.round(span/(30*86400000))); return (m<=3?1:m<=8?2:3)*30*86400000; }
+  if(currentView==='day'){ const d=Math.max(1,Math.round(span/86400000)); return (d<=7?1:d<=14?2:d<=30?7:30)*86400000; }
+  const h=Math.max(1,Math.round(span/3600000)); return (h<=12?1:h<=48?3:h<=168?12:24)*3600000;
+}
+
+function drawChart(){
+  const pts=getRawPoints();
+  const empty=pts.length===0;
+  document.getElementById('empty-msg').style.display=empty?'block':'none';
+  document.getElementById('wbChart').style.display=empty?'none':'block';
+  document.getElementById('time-note').style.display=empty?'none':'block';
+  if(empty) return;
+  const ptColors=pts.map(p=>getLevelColor(p.y));
+  const dk=matchMedia('(prefers-color-scheme:dark)').matches;
+  const tc=dk?'#888':'#666', gc=dk?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.07)';
+  const ti=calcTickInterval(pts);
+  if(chart){ chart.data.datasets[0].data=pts; chart.data.datasets[0].pointBackgroundColor=ptColors; if(ti) chart.options.scales.x.ticks.stepSize=ti; chart.update(); return; }
+  chart=new Chart(document.getElementById('wbChart'),{
+    type:'scatter',
+    data:{datasets:[{label:'WB%',data:pts,borderColor:'#5c9ee8',backgroundColor:'#5c9ee815',showLine:true,fill:true,tension:0.3,pointBackgroundColor:ptColors,pointRadius:5,pointHoverRadius:8,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,parsing:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>fmtDatetime(i[0].raw.x),label:c=>' '+c.raw.y+'%  '+getLevelLabel(c.raw.y)}}},
+      scales:{
+        x:{type:'linear',ticks:{maxTicksLimit:7,maxRotation:30,color:tc,font:{size:10},stepSize:ti||undefined,callback:v=>tickLabel(v)},grid:{display:false}},
+        y:{min:0,max:100,ticks:{stepSize:20,callback:v=>v+'%',color:tc},grid:{color:gc}}
+      }
+    }
+  });
+}
+
+// =============================================
+// 詳細バー・履歴
+// =============================================
+function renderDetail(){
+  const card=document.getElementById('detail-card'), bars=document.getElementById('detail-bars');
+  if(!records.length){card.style.display='none';return;}
+  card.style.display='block';
+  const last=records[records.length-1];
+  bars.innerHTML='';
+  FACTORS.forEach((f,i)=>{
+    const v=last.vals?last.vals[i]:0;
+    if(v===0) return;
+    const pct=(v/10)*100;
+    bars.innerHTML+=`<div class="bar-row">
+      <div class="bar-label" title="${f.name}">${f.name}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${f.color}"></div></div>
+      <div class="bar-val" style="color:${f.color}">${v%1===0?v:v.toFixed(1)}</div>
+    </div>`;
+  });
+}
+
+function renderHist(){
+  const card=document.getElementById('hist-card'), list=document.getElementById('hist-list');
+  if(!records.length){card.style.display='none';return;}
+  card.style.display='block';
+  list.innerHTML=records.slice().reverse().slice(0,10).map(r=>{
+    const d=new Date(r.time);
+    const ds=d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    const color=getLevelColor(r.score);
+    return `<div class="hist-item">
+      <span style="color:#888;font-size:12px">${ds}</span>
+      <span style="color:#555;font-size:13px">${getLevelLabel(r.score)}</span>
+      <span class="hist-score" style="color:${color}">${r.score}%</span>
+    </div>`;
+  }).join('');
+}
+
+// =============================================
+// PNG / PDF エクスポート
+// =============================================
+async function exportPNG(){
+  const card=document.getElementById('chart-card');
+  if(!records.length){toast('まだ記録がありません');return;}
+  toast('グラフを画像に変換中...');
+  try{
+    const canvas=await html2canvas(card,{backgroundColor:'#ffffff',scale:2});
+    const dataUrl=canvas.toDataURL('image/png');
+    const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+    if(isIOS){ showImageModal(dataUrl); }
+    else{
+      const now=new Date(), link=document.createElement('a');
+      link.download='wellbeing_chart_'+now.getFullYear()+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'.png';
+      link.href=dataUrl; link.click();
+      toast('PNGをダウンロードしました');
+    }
+  }catch(e){toast('PNG変換に失敗しました');}
+}
+
+function showImageModal(dataUrl){
+  const old=document.getElementById('img-modal'); if(old) old.remove();
+  const overlay=document.createElement('div');
+  overlay.id='img-modal';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;';
+  const msg=document.createElement('p');
+  msg.textContent='画像を長押し →「写真に追加」で保存できます';
+  msg.style.cssText='color:#fff;font-size:14px;margin-bottom:14px;text-align:center;line-height:1.5;';
+  const img=document.createElement('img');
+  img.src=dataUrl; img.style.cssText='max-width:100%;max-height:65vh;border-radius:10px;'; img.alt='グラフ';
+  const closeBtn=document.createElement('button');
+  closeBtn.textContent='閉じる';
+  closeBtn.style.cssText='margin-top:18px;padding:10px 32px;background:#fff;color:#111;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;';
+  closeBtn.onclick=()=>overlay.remove();
+  overlay.onclick=e=>{ if(e.target===overlay) overlay.remove(); };
+  overlay.appendChild(msg); overlay.appendChild(img); overlay.appendChild(closeBtn);
+  document.body.appendChild(overlay);
+}
+
+async function exportPDF(){
+  if(!records.length){toast('まだ記録がありません');return;}
+  toast('PDFを生成中...');
+  try{
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const W=210, M=18; let y=M;
+    const levelRGB={'#e57373':[229,115,115],'#ff8a65':[255,138,101],'#ffd54f':[255,213,79],'#81c784':[129,199,132],'#4db6ac':[77,182,172]};
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(30,30,30);
+    doc.text('Wellbeing Report',M,y); y+=8;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(120,120,120);
+    const now=new Date();
+    doc.text('Generated: '+now.toLocaleString('ja-JP'),M,y);
+    doc.text('Records: '+records.length,W-M-30,y); y+=10;
+    doc.setDrawColor(220,220,220); doc.line(M,y,W-M,y); y+=8;
+
+    const last=records[records.length-1];
+    const col=getLevelColor(last.score);
+    const rgb=levelRGB[col]||[77,182,172];
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(30,30,30);
+    doc.text('最新スコア',M,y); y+=7;
+    doc.setFillColor(rgb[0],rgb[1],rgb[2]);
+    doc.roundedRect(M,y,50,20,3,3,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(22); doc.setTextColor(255,255,255);
+    doc.text(last.score+'%',M+8,y+14);
+    doc.setFontSize(11); doc.text(getLevelLabel(last.score),M+55,y+13);
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(80,80,80);
+    const ld=new Date(last.time);
+    doc.text('記録日時: '+ld.toLocaleString('ja-JP'),M+55,y+6); y+=26;
+
+    const scores=records.map(r=>r.score);
+    const avg=Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
+    doc.setFillColor(248,248,246);
+    doc.roundedRect(M,y,W-M*2,18,3,3,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(60,60,60);
+    const bw=(W-M*2)/3;
+    doc.text('平均: '+avg+'%',M+6,y+7);
+    doc.text('最高: '+Math.max(...scores)+'%',M+bw+6,y+7);
+    doc.text('最低: '+Math.min(...scores)+'%',M+bw*2+6,y+7); y+=24;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(30,30,30);
+    doc.text('最新記録の因子内訳',M,y); y+=7;
+
+    const fcRGBs=[[92,158,232],[77,182,172],[129,199,132],[255,167,38],[255,138,101]];
+    FACTORS.forEach((f,i)=>{
+      const v=last.vals?last.vals[i]:0;
+      if(v===0) return;
+      const pct=v/10; const bc=fcRGBs[i]||[92,158,232];
+      doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(60,60,60);
+      const sn=f.name.length>14?f.name.slice(0,13)+'…':f.name;
+      doc.text(sn,M,y+3.5);
+      const bx=M+50, bww=W-M*2-50-14;
+      doc.setFillColor(240,240,240); doc.roundedRect(bx,y-0.5,bww,5,1,1,'F');
+      doc.setFillColor(bc[0],bc[1],bc[2]);
+      if(pct>0) doc.roundedRect(bx,y-0.5,bww*pct,5,1,1,'F');
+      doc.setTextColor(80,80,80);
+      doc.text((v%1===0?String(v):v.toFixed(1)),bx+bww+3,y+3.5);
+      y+=8;
+    });
+    y+=4;
+
+    doc.setDrawColor(220,220,220); doc.line(M,y,W-M,y); y+=8;
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(30,30,30);
+    doc.text('記録履歴（直近15件）',M,y); y+=7;
+    doc.setFillColor(240,240,240); doc.rect(M,y,W-M*2,7,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(60,60,60);
+    doc.text('日時',M+3,y+5); doc.text('スコア',M+65,y+5); doc.text('評価',M+90,y+5); doc.text('合計点',M+148,y+5); y+=9;
+    records.slice().reverse().slice(0,15).forEach((r,idx)=>{
+      if(y>270){doc.addPage();y=M;}
+      if(idx%2===0){doc.setFillColor(252,252,252);doc.rect(M,y-1,W-M*2,7,'F');}
+      const d=new Date(r.time);
+      const ds=d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+      const total=(r.vals||[]).reduce((a,b)=>a+(b||0),0);
+      const rc=getLevelColor(r.score); const rrgb=levelRGB[rc]||[77,182,172];
+      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(60,60,60);
+      doc.text(ds,M+3,y+4);
+      doc.setFont('helvetica','bold'); doc.setTextColor(rrgb[0],rrgb[1],rrgb[2]);
+      doc.text(r.score+'%',M+65,y+4);
+      doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80);
+      doc.text(getLevelLabel(r.score),M+90,y+4);
+      doc.text(total.toFixed(1)+'/50',M+148,y+4);
+      y+=7;
+    });
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(180,180,180);
+    doc.text('Wellbeing Tracker — '+now.toLocaleDateString('ja-JP'),M,290);
+    doc.text('Page 1',W-M-10,290);
+    doc.save('wellbeing_report_'+now.getFullYear()+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'.pdf');
+    toast('PDFを保存しました');
+  }catch(e){ console.error(e); toast('PDF生成に失敗しました'); }
+}
+
+// =============================================
+// HealthKit連携（URLパラメータ読み取り）
+// =============================================
+const HK_CFG_KEY = 'hk-config-v1';
+let hkCfg = { steps:10000, workout:60, hrBest:50, hrWorst:90, sleepBest:7.5, sleepWorst:4, meditationBest:30 };
+
+// 自動入力された因子インデックスを追跡（ハイライト用）
+let hkAutoFilled = new Set(); // 'fi-si' の文字列セット
+
+function loadHKCfg(){
+  try{ const s=localStorage.getItem(HK_CFG_KEY); if(s) hkCfg={...hkCfg,...JSON.parse(s)}; }catch(e){}
+  document.getElementById('cfg-steps').value        = hkCfg.steps;
+  document.getElementById('cfg-workout').value      = hkCfg.workout;
+  document.getElementById('cfg-hr-best').value      = hkCfg.hrBest;
+  document.getElementById('cfg-hr-worst').value     = hkCfg.hrWorst;
+  document.getElementById('cfg-sleep-best').value   = hkCfg.sleepBest;
+  document.getElementById('cfg-sleep-worst').value  = hkCfg.sleepWorst;
+  document.getElementById('cfg-meditation').value   = hkCfg.meditationBest;
+}
+
+function saveHKSettings(){
+  hkCfg.steps           = parseFloat(document.getElementById('cfg-steps').value)        || 10000;
+  hkCfg.workout         = parseFloat(document.getElementById('cfg-workout').value)      || 60;
+  hkCfg.hrBest          = parseFloat(document.getElementById('cfg-hr-best').value)      || 50;
+  hkCfg.hrWorst         = parseFloat(document.getElementById('cfg-hr-worst').value)     || 90;
+  hkCfg.sleepBest       = parseFloat(document.getElementById('cfg-sleep-best').value)   || 7.5;
+  hkCfg.sleepWorst      = parseFloat(document.getElementById('cfg-sleep-worst').value)  || 4;
+  hkCfg.meditationBest  = parseFloat(document.getElementById('cfg-meditation').value)   || 30;
+  localStorage.setItem(HK_CFG_KEY, JSON.stringify(hkCfg));
+  applyHealthKitParams();
+  document.getElementById('hk-settings').style.display = 'none';
+  toast('変換基準を保存して再適用しました');
+}
+
+function toggleHKSettings(){
+  const p = document.getElementById('hk-settings');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+// 生数値 → 10段階スコア
+function stepsToScore(v)     { return Math.min(10, Math.max(1, Math.round(v / hkCfg.steps * 10))); }
+function workoutToScore(v)   { return Math.min(10, Math.max(1, Math.round(v / hkCfg.workout * 10))); }
+function meditationToScore(v){ return Math.min(10, Math.max(1, Math.round(v / hkCfg.meditationBest * 10))); }
+function hrToScore(v){
+  if(v <= hkCfg.hrBest)  return 10;
+  if(v >= hkCfg.hrWorst) return 1;
+  return Math.max(1, Math.round(10 - (v - hkCfg.hrBest) / (hkCfg.hrWorst - hkCfg.hrBest) * 9));
+}
+function sleepToScore(v){
+  if(v >= hkCfg.sleepBest)  return 10;
+  if(v <= hkCfg.sleepWorst) return 1;
+  return Math.max(1, Math.round(1 + (v - hkCfg.sleepWorst) / (hkCfg.sleepBest - hkCfg.sleepWorst) * 9));
+}
+
+// 自動入力を適用してハイライトを付与
+function hkSetSubVal(fi, si, score){
+  setSubVal(fi, si, score);
+  hkAutoFilled.add(fi+'-'+si);
+  // ボタン行にハイライトクラスを付与
+  const sfRow = document.getElementById('sfrow-'+fi+'-'+si);
+  if(sfRow){
+    const btnRowEl = sfRow.querySelector('.btn-row');
+    if(btnRowEl){
+      btnRowEl.classList.add('hk-auto-row');
+    }
+    // 因子名にバッジを追加（まだなければ）
+    const nameEl = sfRow.querySelector('.sub-factor-name');
+    if(nameEl && !nameEl.querySelector('.hk-auto-badge')){
+      const badge = document.createElement('span');
+      badge.className = 'hk-auto-badge';
+      badge.textContent = '🍎 自動';
+      nameEl.appendChild(badge);
+    }
+  }
+}
+
+function clearHKHighlights(){
+  hkAutoFilled.forEach(key=>{
+    const [fi,si] = key.split('-').map(Number);
+    const sfRow = document.getElementById('sfrow-'+fi+'-'+si);
+    if(sfRow){
+      const btnRowEl = sfRow.querySelector('.hk-auto-row');
+      if(btnRowEl) btnRowEl.classList.remove('hk-auto-row');
+      const badge = sfRow.querySelector('.hk-auto-badge');
+      if(badge) badge.remove();
+    }
+  });
+  hkAutoFilled.clear();
+}
+
+function applyHealthKitParams(){
+  const params     = new URLSearchParams(window.location.search);
+  const steps      = params.get('steps');
+  const workout    = params.get('workout');
+  const hr         = params.get('heartrate');
+  const sleep      = params.get('sleep');
+  const meditation = params.get('meditation');
+  if(!steps && !workout && !hr && !sleep && !meditation) return;
+
+  clearHKHighlights();
+  const chips = [], notes = [];
+
+  // --- 身体の調律（fi=0）: 下位評価モードに切り替え ---
+  // subs索引: 0=従来型筋力,1=機能的筋力,2=ウォーキング,
+  //           3=歩数,4=心拍数,5=運動時間,6=睡眠時間,7=その他
+  const fi0 = 0;
+  if(directMode[fi0]){
+    directMode[fi0] = false;
+    const toggle = document.getElementById('toggle-'+fi0);
+    if(toggle){ toggle.classList.remove('active'); toggle.textContent='直接入力'; }
+    const directRow = document.getElementById('direct-row-'+fi0);
+    const subArea   = document.getElementById('sub-area-'+fi0);
+    if(directRow) directRow.style.display = 'none';
+    if(subArea)   subArea.style.display   = 'block';
+    topVals[fi0] = 0;
+  }
+
+  if(steps){
+    const raw = parseInt(steps);
+    const score = stepsToScore(raw);
+    hkSetSubVal(fi0, 3, score);
+    chips.push({ label:'歩数', score, raw: raw.toLocaleString()+'歩' });
+    notes.push('歩数 '+raw.toLocaleString()+'歩→'+score+'/10');
+  }
+  if(workout){
+    const raw = parseInt(workout);
+    const score = workoutToScore(raw);
+    hkSetSubVal(fi0, 5, score);
+    chips.push({ label:'運動時間', score, raw: raw+'分' });
+    notes.push('運動 '+raw+'分→'+score+'/10');
+  }
+  if(hr){
+    const raw = parseInt(hr);
+    const score = hrToScore(raw);
+    hkSetSubVal(fi0, 4, score);
+    chips.push({ label:'心拍数', score, raw: raw+'bpm' });
+    notes.push('心拍数 '+raw+'bpm→'+score+'/10');
+  }
+  if(sleep){
+    const raw = parseFloat(sleep);
+    const score = sleepToScore(raw);
+    const h = Math.floor(raw), m = Math.round((raw - h) * 60);
+    hkSetSubVal(fi0, 6, score);
+    chips.push({ label:'睡眠', score, raw: h+'時間'+(m>0?m+'分':'') });
+    notes.push('睡眠 '+raw.toFixed(1)+'h→'+score+'/10');
+  }
+
+  // --- 日常の解像度（fi=1）: メディテーション ---
+  // subs索引: 0=読経・瞑想の深まり,1=生きる行為,2=マインドフルネス,
+  //           3=メディテーション時間,4=その他
+  if(meditation){
+    const fi1 = 1;
+    if(directMode[fi1]){
+      directMode[fi1] = false;
+      const toggle = document.getElementById('toggle-'+fi1);
+      if(toggle){ toggle.classList.remove('active'); toggle.textContent='直接入力'; }
+      const directRow = document.getElementById('direct-row-'+fi1);
+      const subArea   = document.getElementById('sub-area-'+fi1);
+      if(directRow) directRow.style.display = 'none';
+      if(subArea)   subArea.style.display   = 'block';
+      topVals[fi1] = 0;
+    }
+    const raw = parseInt(meditation);
+    const score = meditationToScore(raw);
+    hkSetSubVal(fi1, 3, score);
+    chips.push({ label:'瞑想', score, raw: raw+'分' });
+    notes.push('瞑想 '+raw+'分→'+score+'/10');
+  }
+
+  // バナー表示
+  document.getElementById('hk-chips').innerHTML =
+    chips.map(c=>`<span class="hk-chip">${c.label} <strong>${c.score}/10</strong><span class="raw">(${c.raw})</span></span>`).join('');
+  document.getElementById('hk-note').innerHTML =
+    notes.map(n=>`<span style="margin-right:8px">✓ ${n}</span>`).join('');
+  document.getElementById('hk-banner').style.display = 'block';
+  updateTotalPreview();
+}
+
+// =============================================
+// 起動
+// =============================================
+buildUI();
+load();
+loadHKCfg();
+applyHealthKitParams();
+</script>
+</body>
+</html>
